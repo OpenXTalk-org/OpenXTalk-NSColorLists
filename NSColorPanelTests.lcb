@@ -1,0 +1,282 @@
+
+library org.openxtalk.nscolors
+
+use com.livecode.engine
+use com.livecode.foreign
+use com.livecode.objc
+use com.livecode.array
+use com.livecode.list
+use com.livecode.byte
+use com.livecode.binary
+-- use com.livecode.bitwise
+use com.livecode.math
+use com.livecode.string
+
+-- metadata svgicon is ""
+metadata version is "0.0.1"
+metadata author is "Paul McClernan"
+metadata title is "NSColor List"
+-- metadata description is "Get a list of macOS System Colors"
+-- metadata _ide is "true" -- _ide indicates the IDE uses this module for something and so it should be considered 'built-in'
+-- metadata userVisible is "true" -- Indicates wether or not to display a Widget in the IDE's tools palette
+-- metadata svgicon is "M....Z" -- this is an SVG Path string to use a the modules icon
+-- metadata keywords is ["NSColorPanel", "color picker", "color"] -- A list of keywords to help users find the module in the IDE
+metadata website is "https://www.openxtalk.org" -- A URL for the library's website or project page
+-- metadata license is "GPLv3" -- The license under which the library is released
+-- metadata dependencies is ["com.livecode.library.widgetutils", "use com.livecode.objc"] -- A list of other libraries that this library depends on
+metadata platforms is "macOS" -- A list of platforms that this library supports
+metadata compatibility is "9.0 - 1.14" -- The range of compatible version numbers
+
+private foreign handler ObjC_NSColorListAvailableColorLists() returns ObjcId binds to "objc:NSColorList.+availableColorLists"
+private foreign handler ObjC_NSColorListName(in pNSColorList as ObjcId) returns ObjcId binds to "objc:NSColorList.name"
+public handler getNSColorListAvalableLists() returns optional any
+   variable tAvailableColorLists as optional ObjcId
+   variable tColorLists as optional List
+   variable tNSColorList as optional ObjcId
+   variable tNSStrObj as optional ObjcId
+   variable tString as optional String
+   variable tReturnString as optional String
+   put "" into tReturnString
+   unsafe
+      put ObjC_NSColorListAvailableColorLists() into tAvailableColorLists
+      if tAvailableColorLists is not nothing then
+         put ListFromNSArray(tAvailableColorLists) into tColorLists
+        -- log [tColorLists]
+         repeat for each element tNSColorList in tColorLists
+            put ObjC_NSColorListName( tNSColorList) into tNSStrObj
+            put StringFromNSString(tNSStrObj) into tString
+            -- log [tString]
+            put tString & "\n" after tReturnString
+         end repeat
+         delete char -1 of tReturnString
+      end if
+   end unsafe
+   return tReturnString
+end handler
+
+constant CR is "\n"
+constant TAB is "\t"
+
+-- {"00":"00","33":"51","66":"102","99":"153","CC":"204","FF":"255"}
+constant kWebSafeColors is { "00" : "00", "33" : "51", "66" : "102", "99" : "153", "CC" : "204", "FF" : "255" }
+
+private foreign handler ObjC_NSColorListColorListNamed(in pNSColorLists as ObjcId) returns optional ObjcId binds to "objc:NSColorList.+colorListNamed:"
+private foreign handler ObjC_NSColorListColorListAllKeys(in pNSColorList as ObjcId) returns optional ObjcId binds to "objc:NSColorList.allKeys"
+public handler getNSColorListNamed(in pColorListName as optional String) returns optional any
+   variable tNSColorList as optional ObjcId
+   variable tNSArray as optional ObjcId
+   variable tColorKeysList as optional List
+   variable tString as optional String
+
+   variable tRedHex as optional String
+   variable tRedInt as optional Integer
+   variable tBlueHex as optional String
+   variable tBlueInt as optional Integer
+   variable tGreenHex as optional String
+   variable tGreenInt as optional Integer
+
+   variable tReturnString as String
+   variable tColorName as String
+   put "" into tReturnString
+   --- Special case for Web Safe Colors (deprecated since early 2000s) since it's easier to generate the list than it is to get it from color profile
+   if pColorListName is "Web Safe Colors" then
+      -- log ["Web Safe Colors (deprecated)"]
+      repeat for each key tRedHex in kWebSafeColors
+         repeat for each key tBlueHex in kWebSafeColors
+            repeat for each key tGreenHex in kWebSafeColors
+               put "#" & tRedHex & tBlueHex & tGreenHex & tab & kWebSafeColors[tRedHex] &","& kWebSafeColors[tBlueHex] &","& kWebSafeColors[tGreenHex] & cr after tReturnString
+            end repeat
+         end repeat
+      end repeat
+      return tReturnString
+   end if
+   unsafe
+      put ObjC_NSColorListColorListNamed( StringToNSString(pColorListName) ) into tNSColorList
+      if tNSColorList is not nothing then
+         -- LogNSObjectReflection(tNSColorList)
+         put ObjC_NSColorListColorListAllKeys(tNSColorList) into tNSArray
+         put ListFromNSArray( tNSArray ) into tColorKeysList
+         sort tColorKeysList in ascending text order
+         repeat for each element tString in tColorKeysList
+            put tString & tab & getNSColorGetColorListColorNameRGB(pColorListName,tString) & cr after tReturnString
+         end repeat
+			if tReturnString is not "" then
+            delete char -1 of tReturnString
+			end if
+      end if
+   end unsafe
+   return tReturnString
+end handler
+
+private foreign handler ObjC_NSColorListColorWithKey(in pNSColorList as ObjcId, in pNSColorName as ObjcId) returns optional ObjcId binds to "objc:NSColorList.-colorWithKey:"
+private foreign handler c_CGColorSpaceCreateDeviceRGB() returns optional Pointer binds to "c:CGColorSpaceCreateDeviceRGB"
+private foreign handler ObjC_NSColorSpaceAlloc() returns ObjcRetainedId binds to "objc:NSColorSpace.+alloc"
+private foreign handler ObjC_NSColorSpaceInitWithCGColorSpace(in pObj as ObjcRetainedId, in CGColorSpaceRef as optional Pointer) returns ObjcId binds to "objc:NSColorSpace.-initWithCGColorSpace:"
+private foreign handler ObjC_NSColorUsingColorSpace (in pNSColor as ObjcId, in pNSColorSpace as ObjcId) returns ObjcId binds to "objc:NSColor.-colorUsingColorSpace:"
+private foreign handler ObjC_NSColorNumberOfComponents(in pColor as ObjcId) returns CUInt binds to "objc:NSColor.numberOfComponents"
+private foreign handler ObjC_NSColorGetRGBA(in pNSColor as ObjcId, out rRed as optional CDouble, out rGreen as optional CDouble, out rBlue as optional CDouble, out rAlpha as optional CDouble ) returns nothing binds to "objc:NSColor.getRed:green:blue:alpha:"
+public handler getNSColorGetSystemColorRGB(in pColorcNameStr as String) returns optional any
+   variable tNSColorList as optional ObjcId
+   variable tNSColor as optional ObjcId
+   variable tNSColorSpace as optional ObjcId
+   variable tCGColorSpaceRef as optional Pointer
+   variable tColorKeysList as optional List
+   variable tColorName as String
+   variable rRed as optional Number
+   variable rBlue as optional Number
+   variable rGreen as optional Number
+   variable rAlpha as optional Number
+
+   variable tInteger as optional Integer
+   variable tString as optional String
+   variable tReturnString as String
+   variable tAny as optional any
+   put "" into tReturnString
+   unsafe
+      put ObjC_NSColorListColorListNamed(StringToNSString("System")) into tNSColorList
+      if tNSColorList is not nothing then
+
+         put ObjC_NSColorListColorWithKey(tNSColorList, StringToNSString(pColorcNameStr)) into tNSColor
+
+          put c_CGColorSpaceCreateDeviceRGB() into tCGColorSpaceRef
+          -- log tCGColorSpaceRef -- check that we received a C Pointer
+
+          put ObjC_NSColorSpaceAlloc() into tNSColorSpace -- creates a new NSColorSpace object
+          put ObjC_NSColorSpaceInitWithCGColorSpace(tNSColorSpace,tCGColorSpaceRef) into tNSColorSpace
+          -- LogNSObjectReflection(tNSColorSpace) -- Check object
+          put ObjC_NSColorUsingColorSpace(tNSColor,tNSColorSpace) into tNSColor
+          -- LogNSObjectReflection(tNSColor)
+
+          put ObjC_NSColorNumberOfComponents(tNSColor) into tInteger
+          -- log ["Number of Color Components",tInteger]
+
+          ObjC_NSColorGetRGBA(tNSColor,rRed,rGreen,rBlue,rAlpha)
+          put the rounded of (rRed * 255) into rRed
+          put the rounded of (rGreen * 255) into rGreen
+          put the rounded of (rBlue * 255) into rBlue
+          put the rounded of (rAlpha * 255) into rAlpha
+
+          if rAlpha = 255 then -- opacity is 100%
+             return rRed formatted as string &","& rGreen formatted as string &","&  rBlue formatted as string
+          else
+             return rRed formatted as string &","& rGreen formatted as string &","&  rBlue formatted as string &","&  rAlpha formatted as string
+          end if
+      else
+         return "Error: Color Name Not Found"
+      end if
+   end unsafe
+   return tReturnString
+end handler
+
+public handler getNSColorGetColorListColorNameRGB(in pColorListNamed as String, in pColorcNamed as String) returns optional any
+   variable tNSColorList as optional ObjcId
+   variable tNSColor as optional ObjcId
+   variable tNSColorSpace as optional ObjcId
+   variable tCGColorSpaceRef as optional Pointer
+   variable tColorKeysList as optional List
+   variable tColorName as String
+   variable rRed as optional Number
+   variable rBlue as optional Number
+   variable rGreen as optional Number
+   variable rAlpha as optional Number
+
+   variable tInteger as optional Integer
+   variable tString as optional String
+   variable tReturnString as String
+   variable tAny as optional any
+   put "" into tReturnString
+   unsafe
+      put ObjC_NSColorListColorListNamed( StringToNSString(pColorListNamed) ) into tNSColorList
+      if tNSColorList is not nothing then
+
+         put ObjC_NSColorListColorWithKey(tNSColorList, StringToNSString(pColorcNamed)) into tNSColor
+
+          put c_CGColorSpaceCreateDeviceRGB() into tCGColorSpaceRef
+          -- log tCGColorSpaceRef -- check that we received a C Pointer
+          put ObjC_NSColorSpaceAlloc() into tNSColorSpace -- creates a new NSColorSpace object
+          put ObjC_NSColorSpaceInitWithCGColorSpace(tNSColorSpace,tCGColorSpaceRef) into tNSColorSpace
+          -- LogNSObjectReflection(tNSColorSpace) -- Check object
+          put ObjC_NSColorUsingColorSpace(tNSColor,tNSColorSpace) into tNSColor
+          -- LogNSObjectReflection(tNSColor)
+          put ObjC_NSColorNumberOfComponents(tNSColor) into tInteger
+          -- log ["Number of Color Components",tInteger]
+          ObjC_NSColorGetRGBA(tNSColor,rRed,rGreen,rBlue,rAlpha)
+			 put the rounded of (rRed * 255) into rRed
+          put the rounded of (rGreen * 255) into rGreen
+          put the rounded of (rBlue * 255) into rBlue
+          put the rounded of (rAlpha * 255) into rAlpha
+          if rAlpha = 255 then -- opacity is 100%
+             return rRed formatted as string &","& rGreen formatted as string &","&  rBlue formatted as string
+          else
+             return rRed formatted as string &","& rGreen formatted as string &","&  rBlue formatted as string &","&  rAlpha formatted as string
+          end if
+      else
+         return "Error: Color Name Not Found"
+      end if
+   end unsafe
+   return tReturnString
+end handler
+
+private foreign handler getSharedColorPanel() returns ObjCid binds to "objc:NSColorPanel.+sharedColorPanel"
+public handler TestGetSharedColorPanel()
+	variable tSharedColorPanel as ObjCid
+	unsafe
+		put getSharedColorPanel() into tSharedColorPanel
+	   log tSharedColorPanel
+	end unsafe
+end handler
+
+
+--------------- OBJ C REFLECTION HANDLER FOR DEBUG -----
+private foreign handler objC_NSObjectClassName(in pNSObj as ObjcId) returns ObjcId binds to "objc:NSObject.className"
+private foreign handler objC_NSObjectGetSuperClass(in pNSObj as ObjcId) returns ObjcId binds to "objc:NSObject.superclass"
+private foreign handler objC_NSObjectGetDescription(in pNSObj as ObjcId) returns ObjcId binds to "objc:NSObject.description"
+private foreign handler ObjC_NSObjectGetAttributeKeys( in pNSObjct as ObjcId) returns optional ObjcId binds to "objc:NSObject.-attributeKeys"
+
+--- C Bindings for Core Foundation
+private foreign handler c_NSClassFromString(in pClassNameString as ObjcId) returns ObjcId binds to "c:NSClassFromString"
+private foreign handler c_class_copyPropertyList(in pClass as ObjcId, out pCount as UInt32) returns optional Pointer binds to "c:class_copyPropertyList"
+private foreign handler c_class_getProperty(in pClass as ObjcId, in pPropNameNSStr as ObjcId) returns optional Pointer binds to "c:c_class_getProperty"
+-- objc_property_t class_getProperty(Class cls, const char *name);
+private foreign handler c_property_getName(in pClass as optional Pointer) returns optional Pointer binds to "c:property_getName"
+-- const char * property_getName(objc_property_t property);
+
+public handler LogNSObjectReflection(in pNSObj as ObjcId)
+	 variable tNSStrObj as optional ObjcId
+	 variable tNSObj as optional ObjcId
+	 variable tStr as optional String
+	 variable tClass as ObjcId
+	 variable tPropsCount as optional UInt32
+	 variable tListNSObj as optional ObjcId
+	 variable tListOpaquePtr as optional Pointer -- points to C array of 'objc_property_t'
+	 if pNSObj is not nothing then
+		 unsafe
+			 put objC_NSObjectClassName(pNSObj) into tNSStrObj
+			 put StringFromNSString(tNSStrObj) into tStr
+			 log ["Class Name" , tStr]
+			 put c_NSClassFromString(tNSStrObj) into tClass
+
+			 put objC_NSObjectGetSuperClass(pNSObj) into tNSObj
+			 put objC_NSObjectClassName(tNSObj) into tNSStrObj
+			 put StringFromNSString(tNSStrObj) into tStr
+			 log ["SuperClass" , tStr]
+
+			 put objC_NSObjectGetDescription(pNSObj) into tNSStrObj
+			 put StringFromNSString(tNSStrObj) into tStr
+			 log ["Description" , tStr]
+
+			 put ObjC_NSObjectGetAttributeKeys(pNSObj) into tListNSObj
+			 if tListNSObj is not nothing then
+				 put StringFromNSString(tListNSObj) into tStr
+				 log ["AttributeKeys" , tStr]
+			 end if
+			 put c_class_copyPropertyList(tClass,tPropsCount) into tListOpaquePtr
+			 log ["Props List Count and Pointer", tPropsCount,tListOpaquePtr ]
+		 end unsafe
+	 else
+		 log "No Object"
+	 end if
+ end handler
+
+
+end library
