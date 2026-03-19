@@ -1,5 +1,5 @@
 <package version="0.0">
-  <name>org.openxtalk.nscolors</name>
+  <name>org.openxtalk.nscolor</name>
   <title>NSColor List</title>
   <author>Paul McClernan</author>
   <version>0.0.1</version>
@@ -20,11 +20,10 @@
   <requires name="com.livecode.mathfoundation"/>
   <requires name="com.livecode.engine"/>
   <metadata key="website">https://www.openxtalk.org</metadata>
-  <metadata key="compatibility">9.0 - 1.14</metadata>
+  <metadata key="compatibility">9.0 - OXT 1.14</metadata>
   <handler name="getNSColorListAvalableLists" parameters="" return="optional any"/>
   <handler name="getNSColorListNamed" parameters="in optional string" return="optional any"/>
   <handler name="getNSColorGetSystemColorRGB" parameters="in string" return="optional any"/>
   <handler name="getNSColorGetColorListColorNameRGB" parameters="in string,in string" return="optional any"/>
   <handler name="TestGetSharedColorPanel" parameters="" return="any"/>
-  <handler name="LogNSObjectReflection" parameters="in ObjcId" return="any"/>
 </package>

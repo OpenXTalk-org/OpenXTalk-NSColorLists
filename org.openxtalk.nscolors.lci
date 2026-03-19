@@ -17,5 +17,4 @@ import module org.openxtalk.nscolors
   handler getNSColorGetSystemColorRGB(in pColorcNameStr as String) returns optional any
   handler getNSColorGetColorListColorNameRGB(in pColorListNamed as String, in pColorcNamed as String) returns optional any
   handler TestGetSharedColorPanel() returns optional any
-  handler LogNSObjectReflection(in pNSObj as ObjcId) returns optional any
 end module

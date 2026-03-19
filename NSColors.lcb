@@ -1,5 +1,19 @@
+/**
+NSColor Swatches Library
 
-library org.openxtalk.nscolors
+Description:
+Get a list of colors swatche colors from the macOS System NSColorLists API,
+This library may be expanded on or merged with another library in the future.
+License: GPLv3
+
+Dependencies: "com.livecode.library.widgetutils", "use com.livecode.objc"
+
+Keywords:
+"NSColorPanel", "color picker", "color"
+
+*/
+
+library org.openxtalk.nscolor
 
 use com.livecode.engine
 use com.livecode.foreign
@@ -8,24 +22,19 @@ use com.livecode.array
 use com.livecode.list
 use com.livecode.byte
 use com.livecode.binary
--- use com.livecode.bitwise
 use com.livecode.math
 use com.livecode.string
 
--- metadata svgicon is ""
 metadata version is "0.0.1"
 metadata author is "Paul McClernan"
 metadata title is "NSColor List"
--- metadata description is "Get a list of macOS System Colors"
+-- A URL for the library's website or project page
+metadata website is "https://www.openxtalk.org"
+metadata platforms is "macOS" -- A list of platforms that this library supports
+metadata compatibility is "9.0 - OXT 1.14" -- The range of compatible version numbers
 -- metadata _ide is "true" -- _ide indicates the IDE uses this module for something and so it should be considered 'built-in'
 -- metadata userVisible is "true" -- Indicates wether or not to display a Widget in the IDE's tools palette
 -- metadata svgicon is "M....Z" -- this is an SVG Path string to use a the modules icon
--- metadata keywords is ["NSColorPanel", "color picker", "color"] -- A list of keywords to help users find the module in the IDE
-metadata website is "https://www.openxtalk.org" -- A URL for the library's website or project page
--- metadata license is "GPLv3" -- The license under which the library is released
--- metadata dependencies is ["com.livecode.library.widgetutils", "use com.livecode.objc"] -- A list of other libraries that this library depends on
-metadata platforms is "macOS" -- A list of platforms that this library supports
-metadata compatibility is "9.0 - 1.14" -- The range of compatible version numbers
 
 private foreign handler ObjC_NSColorListAvailableColorLists() returns ObjcId binds to "objc:NSColorList.+availableColorLists"
 private foreign handler ObjC_NSColorListName(in pNSColorList as ObjcId) returns ObjcId binds to "objc:NSColorList.name"
@@ -54,14 +63,12 @@ public handler getNSColorListAvalableLists() returns optional any
    return tReturnString
 end handler
 
-constant CR is "\n"
-constant TAB is "\t"
-
--- {"00":"00","33":"51","66":"102","99":"153","CC":"204","FF":"255"}
-constant kWebSafeColors is { "00" : "00", "33" : "51", "66" : "102", "99" : "153", "CC" : "204", "FF" : "255" }
 
 private foreign handler ObjC_NSColorListColorListNamed(in pNSColorLists as ObjcId) returns optional ObjcId binds to "objc:NSColorList.+colorListNamed:"
 private foreign handler ObjC_NSColorListColorListAllKeys(in pNSColorList as ObjcId) returns optional ObjcId binds to "objc:NSColorList.allKeys"
+constant CR is "\n"
+constant TAB is "\t"
+constant kWebSafeColors is { "00" : "00", "33" : "51", "66" : "102", "99" : "153", "CC" : "204", "FF" : "255" }
 public handler getNSColorListNamed(in pColorListName as optional String) returns optional any
    variable tNSColorList as optional ObjcId
    variable tNSArray as optional ObjcId
@@ -69,16 +76,12 @@ public handler getNSColorListNamed(in pColorListName as optional String) returns
    variable tString as optional String
 
    variable tRedHex as optional String
-   variable tRedInt as optional Integer
    variable tBlueHex as optional String
-   variable tBlueInt as optional Integer
    variable tGreenHex as optional String
-   variable tGreenInt as optional Integer
 
    variable tReturnString as String
-   variable tColorName as String
    put "" into tReturnString
-   --- Special case for Web Safe Colors (deprecated since early 2000s) since it's easier to generate the list than it is to get it from color profile
+   --- Special case for Web Safe Colors (deprecated since early 2000s) since it's easier to generate the list than it is to get it from the ICC color profile.
    if pColorListName is "Web Safe Colors" then
       -- log ["Web Safe Colors (deprecated)"]
       repeat for each key tRedHex in kWebSafeColors
@@ -135,27 +138,21 @@ public handler getNSColorGetSystemColorRGB(in pColorcNameStr as String) returns 
    unsafe
       put ObjC_NSColorListColorListNamed(StringToNSString("System")) into tNSColorList
       if tNSColorList is not nothing then
-
          put ObjC_NSColorListColorWithKey(tNSColorList, StringToNSString(pColorcNameStr)) into tNSColor
-
           put c_CGColorSpaceCreateDeviceRGB() into tCGColorSpaceRef
           -- log tCGColorSpaceRef -- check that we received a C Pointer
-
           put ObjC_NSColorSpaceAlloc() into tNSColorSpace -- creates a new NSColorSpace object
           put ObjC_NSColorSpaceInitWithCGColorSpace(tNSColorSpace,tCGColorSpaceRef) into tNSColorSpace
           -- LogNSObjectReflection(tNSColorSpace) -- Check object
           put ObjC_NSColorUsingColorSpace(tNSColor,tNSColorSpace) into tNSColor
           -- LogNSObjectReflection(tNSColor)
-
           put ObjC_NSColorNumberOfComponents(tNSColor) into tInteger
           -- log ["Number of Color Components",tInteger]
-
           ObjC_NSColorGetRGBA(tNSColor,rRed,rGreen,rBlue,rAlpha)
           put the rounded of (rRed * 255) into rRed
           put the rounded of (rGreen * 255) into rGreen
           put the rounded of (rBlue * 255) into rBlue
           put the rounded of (rAlpha * 255) into rAlpha
-
           if rAlpha = 255 then -- opacity is 100%
              return rRed formatted as string &","& rGreen formatted as string &","&  rBlue formatted as string
           else
@@ -188,9 +185,7 @@ public handler getNSColorGetColorListColorNameRGB(in pColorListNamed as String, 
    unsafe
       put ObjC_NSColorListColorListNamed( StringToNSString(pColorListNamed) ) into tNSColorList
       if tNSColorList is not nothing then
-
-         put ObjC_NSColorListColorWithKey(tNSColorList, StringToNSString(pColorcNamed)) into tNSColor
-
+          put ObjC_NSColorListColorWithKey(tNSColorList, StringToNSString(pColorcNamed)) into tNSColor
           put c_CGColorSpaceCreateDeviceRGB() into tCGColorSpaceRef
           -- log tCGColorSpaceRef -- check that we received a C Pointer
           put ObjC_NSColorSpaceAlloc() into tNSColorSpace -- creates a new NSColorSpace object
@@ -226,7 +221,7 @@ public handler TestGetSharedColorPanel()
 	end unsafe
 end handler
 
-
+/*
 --------------- OBJ C REFLECTION HANDLER FOR DEBUG -----
 private foreign handler objC_NSObjectClassName(in pNSObj as ObjcId) returns ObjcId binds to "objc:NSObject.className"
 private foreign handler objC_NSObjectGetSuperClass(in pNSObj as ObjcId) returns ObjcId binds to "objc:NSObject.superclass"
@@ -277,6 +272,6 @@ public handler LogNSObjectReflection(in pNSObj as ObjcId)
 		 log "No Object"
 	 end if
  end handler
-
+*/
 
 end library

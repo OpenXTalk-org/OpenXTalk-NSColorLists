@@ -1,6 +1,16 @@
-Library: 
+Library: org.openxtalk.nscolor
 
-Type: 
+Type: library
+
+License: GPLv3
+
+Description:
+Get a list of colors swatche colors from the macOS System NSColorLists API,
+This library may be expanded on or merged with another library in the future.
+
+Dependencies: "com.livecode.library.widgetutils", "use com.livecode.objc"
+
+Keywords: "NSColorPanel", "color picker", "color"
 
 version: 0.0.1
 
